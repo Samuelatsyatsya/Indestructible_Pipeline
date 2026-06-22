@@ -109,6 +109,22 @@ pipeline {
                         ssh -o StrictHostKeyChecking=no -i $EC2_KEY ec2-user@$EC2_IP \
                           "aws ecr get-login-password --region ''' + AWS_REGION + ''' | \
                             docker login --username AWS --password-stdin ''' + ECR_REGISTRY + '''; \
+                           cat > /home/ec2-user/docker-compose.yml << COMPOSE
+services:
+  backend:
+    image: ''' + ECR_REGISTRY + '''/''' + BACKEND_REPO + ''':''' + IMAGE_TAG + '''
+    container_name: fincorp-api
+    restart: unless-stopped
+
+  frontend:
+    image: ''' + ECR_REGISTRY + '''/''' + FRONTEND_REPO + ''':''' + IMAGE_TAG + '''
+    container_name: fincorp-ui
+    ports:
+      - \\"80:80\\"
+    depends_on:
+      - backend
+    restart: unless-stopped
+COMPOSE
                            cd /home/ec2-user && \
                            docker compose pull && \
                            docker compose up -d"
