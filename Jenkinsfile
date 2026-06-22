@@ -127,10 +127,11 @@ services:
     restart: unless-stopped
 COMPOSE
                         scp -o StrictHostKeyChecking=no -i \$EC2_KEY \
-                          /tmp/docker-compose-deploy.yml ec2-user@\$EC2_IP:/home/ec2-user/docker-compose.yml
+                          /tmp/docker-compose-deploy.yml ec2-user@\$EC2_IP:/tmp/docker-compose.yml
 
                         ssh -o StrictHostKeyChecking=no -i \$EC2_KEY ec2-user@\$EC2_IP \
-                          "aws ecr get-login-password --region ${AWS_REGION} | \
+                          "cp /tmp/docker-compose.yml /home/ec2-user/docker-compose.yml && \
+                           aws ecr get-login-password --region ${AWS_REGION} | \
                             docker login --username AWS --password-stdin ${ECR_REGISTRY} && \
                            cd /home/ec2-user && \
                            docker compose pull && \
