@@ -132,8 +132,9 @@ COMPOSE
                         ssh -o StrictHostKeyChecking=no -i \$EC2_KEY ec2-user@\$EC2_IP \
                           "aws ecr get-login-password --region ${AWS_REGION} | \
                             docker login --username AWS --password-stdin ${ECR_REGISTRY} && \
-                           docker compose -f /tmp/docker-compose.yml pull && \
-                           docker compose -f /tmp/docker-compose.yml up -d"
+                           docker rm -f fincorp-api fincorp-ui 2>/dev/null || true && \
+                           docker compose -p fincorp -f /tmp/docker-compose.yml pull && \
+                           docker compose -p fincorp -f /tmp/docker-compose.yml up -d"
                     """
                 }
             }
