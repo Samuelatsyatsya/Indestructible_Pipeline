@@ -105,15 +105,14 @@ pipeline {
                     ),
                     string(credentialsId: 'indestructible-ec2', variable: 'EC2_IP')
                 ]) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no -i $EC2_KEY ec2-user@$EC2_IP '
-                            aws ecr get-login-password --region ${AWS_REGION} | \
-                              docker login --username AWS --password-stdin ${ECR_REGISTRY}
-                            cd /home/ec2-user
-                            docker compose pull
-                            docker compose up -d
-                        '
-                    """
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no -i $EC2_KEY ec2-user@$EC2_IP \
+                          "aws ecr get-login-password --region ''' + AWS_REGION + ''' | \
+                            docker login --username AWS --password-stdin ''' + ECR_REGISTRY + '''; \
+                           cd /home/ec2-user && \
+                           docker compose pull && \
+                           docker compose up -d"
+                    '''
                 }
             }
         }
