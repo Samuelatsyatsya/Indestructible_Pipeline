@@ -103,9 +103,46 @@ module "ec2" {
   aws_region       = var.primary_region
   ecr_registry     = "${var.aws_account_id}.dkr.ecr.${var.primary_region}.amazonaws.com"
 
-  # These images must exist in ECR before the instance starts — Jenkins pushes them.
-  backend_image  = "309797288544.dkr.ecr.eu-central-1.amazonaws.com/fincorp/loan-api:latest"
-  frontend_image = "309797288544.dkr.ecr.eu-central-1.amazonaws.com/fincorp/loan-ui:latest"
+  backend_image  = "309797288544.dkr.ecr.eu-central-1.amazonaws.com/fincorp/loan-api:3-f365834"
+  frontend_image = "309797288544.dkr.ecr.eu-central-1.amazonaws.com/fincorp/loan-ui:3-f365834"
+  key_name       = "fincorp-ec2-key"
+
+  tags = local.common_tags
+}
+
+# ── Route 53 private hosted zone ───────────────────────────────────────────────
+module "route53" {
+  source = "./modules/route53"
+
+  vpc_id               = module.vpc.vpc_id
+  # Strip the port suffix — Route 53 CNAME value must be a hostname only.
+  primary_rds_endpoint = split(":", module.rds.db_endpoint)[0]
+
+  tags = local.common_tags
+}
+
+# ── CloudWatch alarm + SNS topic (created first — Lambda needs the SNS ARN) ───
+module "cloudwatch" {
+  source = "./modules/cloudwatch"
+
+  db_instance_id      = "fincorp-primary-db"
+  alert_email         = var.alert_email
+  lambda_function_arn = module.lambda.function_arn
+
+  tags = local.common_tags
+}
+
+# ── DR Failover Lambda ─────────────────────────────────────────────────────────
+module "lambda" {
+  source = "./modules/lambda"
+
+  dr_region           = var.dr_region
+  dr_vault_name       = "fincorp-dr-vault"
+  backup_iam_role_arn = "arn:aws:iam::${var.aws_account_id}:role/fincorp-backup-role"
+  restored_db_id      = "fincorp-restored-db"
+  route53_zone_id     = module.route53.zone_id
+  route53_record      = module.route53.db_dns_name
+  sns_topic_arn       = module.cloudwatch.sns_topic_arn
 
   tags = local.common_tags
 }
