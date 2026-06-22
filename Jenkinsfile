@@ -59,6 +59,7 @@ pipeline {
                               --ignorefile .trivyignore \
                               --no-progress \
                               --format table \
+                              --cache-dir /tmp/trivy-cache-backend \
                               ${ECR_REGISTRY}/${BACKEND_REPO}:${IMAGE_TAG}
                         """
                     }
@@ -69,8 +70,10 @@ pipeline {
                             trivy image \
                               --exit-code 1 \
                               --severity HIGH,CRITICAL \
+                              --ignorefile .trivyignore \
                               --no-progress \
                               --format table \
+                              --cache-dir /tmp/trivy-cache-frontend \
                               ${ECR_REGISTRY}/${FRONTEND_REPO}:${IMAGE_TAG}
                         """
                     }
