@@ -185,6 +185,45 @@ Two scripts in `scripts/` orchestrate the full DR cycle:
 
 Both scripts use structured logging (`[INFO]`, `[OK]`, `[WARN]`, `[ERROR]`) with UTC timestamps to stderr, and print only the actionable output (the recovery ARN) to stdout so the scripts can be piped together.
 
+### Automatic Failover Flow
+
+When the primary RDS goes down, the following happens automatically — no engineer intervention needed:
+
+```
+fincorp-primary-db goes down
+         │
+         ▼  (2 minutes)
+CloudWatch Alarm: DatabaseConnections ≤ 0
+         │
+         ▼
+SNS Topic: fincorp-dr-alerts
+         │
+    ┌────┴────┐
+    ▼         ▼
+Lambda      Email → you
+    │
+    ├── Finds latest recovery point in fincorp-dr-vault (eu-west-1)
+    ├── Calls start_restore_job → fincorp-restored-db
+    ├── Polls until status = available
+    └── Updates Route 53 CNAME:
+        primary.db.fincorp.internal → restored endpoint
+         │
+         ▼
+App reconnects automatically on next DB call
+         │
+         ▼
+Email: "DR COMPLETE — app live in eu-west-1"
+```
+
+**Components provisioned:**
+
+| Component | Resource | Purpose |
+|---|---|---|
+| CloudWatch Alarm | `fincorp-rds-primary-down` | Fires after 2 consecutive minutes of zero DB connections |
+| SNS Topic | `fincorp-dr-alerts` | Fans out to Lambda (trigger) and email (notification) |
+| Lambda | `fincorp-dr-failover` | Restores DB in eu-west-1 and updates Route 53 |
+| Route 53 | `primary.db.fincorp.internal` | DNS abstraction — app never hardcodes an RDS endpoint |
+
 ### DR Simulation — 22 June 2026
 
 **Step 1: On-demand backup triggered**
