@@ -1,0 +1,26 @@
+# Node
+node_modules/
+frontend/build/
+
+# Environment files
+.env
+*.env.local
+*.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Terraform
+infra/.terraform/
+infra/.terraform.lock.hcl
+infra/terraform.tfstate
+infra/terraform.tfstate.backup
+infra/*.tfplan
+infra/crash.log
+
+# Sensitive — never commit
+infra/terraform.tfvars
+infra/terraform.tfvars.local
+*.pem
+*.key
