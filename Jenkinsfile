@@ -56,6 +56,7 @@ pipeline {
                             trivy image \
                               --exit-code 1 \
                               --severity HIGH,CRITICAL \
+                              --ignorefile .trivyignore \
                               --no-progress \
                               --format table \
                               ${ECR_REGISTRY}/${BACKEND_REPO}:${IMAGE_TAG}
