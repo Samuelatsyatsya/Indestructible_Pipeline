@@ -108,30 +108,34 @@ pipeline {
                     ),
                     string(credentialsId: 'indestructible-ec2', variable: 'EC2_IP')
                 ]) {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no -i $EC2_KEY ec2-user@$EC2_IP \
-                          "aws ecr get-login-password --region ''' + AWS_REGION + ''' | \
-                            docker login --username AWS --password-stdin ''' + ECR_REGISTRY + '''; \
-                           cat > /home/ec2-user/docker-compose.yml << COMPOSE
+                    // Write compose file locally first, then scp it — avoids heredoc quoting issues over SSH.
+                    sh """
+                        cat > /tmp/docker-compose-deploy.yml << 'COMPOSE'
 services:
   backend:
-    image: ''' + ECR_REGISTRY + '''/''' + BACKEND_REPO + ''':''' + IMAGE_TAG + '''
+    image: ${ECR_REGISTRY}/${BACKEND_REPO}:${IMAGE_TAG}
     container_name: fincorp-api
     restart: unless-stopped
 
   frontend:
-    image: ''' + ECR_REGISTRY + '''/''' + FRONTEND_REPO + ''':''' + IMAGE_TAG + '''
+    image: ${ECR_REGISTRY}/${FRONTEND_REPO}:${IMAGE_TAG}
     container_name: fincorp-ui
     ports:
-      - \\"80:80\\"
+      - "80:80"
     depends_on:
       - backend
     restart: unless-stopped
 COMPOSE
+                        scp -o StrictHostKeyChecking=no -i \$EC2_KEY \
+                          /tmp/docker-compose-deploy.yml ec2-user@\$EC2_IP:/home/ec2-user/docker-compose.yml
+
+                        ssh -o StrictHostKeyChecking=no -i \$EC2_KEY ec2-user@\$EC2_IP \
+                          "aws ecr get-login-password --region ${AWS_REGION} | \
+                            docker login --username AWS --password-stdin ${ECR_REGISTRY} && \
                            cd /home/ec2-user && \
                            docker compose pull && \
                            docker compose up -d"
-                    '''
+                    """
                 }
             }
         }
