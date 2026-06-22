@@ -1,10 +1,13 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
+# Upgrade Alpine packages to pick up latest security patches before Trivy scans.
+RUN apk upgrade --no-cache
 COPY package.json ./
 RUN npm install --production
 
 FROM node:20-alpine AS runtime
 WORKDIR /app
+RUN apk upgrade --no-cache
 
 RUN addgroup -S fincorp && adduser -S fincorp -G fincorp
 COPY --from=deps /app/node_modules ./node_modules

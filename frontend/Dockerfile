@@ -1,5 +1,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
+# Upgrade Alpine packages to pick up latest security patches before Trivy scans.
+RUN apk upgrade --no-cache
 COPY package.json ./
 RUN npm install
 COPY . .
@@ -8,6 +10,7 @@ ENV REACT_APP_API_URL=$REACT_APP_API_URL
 RUN npm run build
 
 FROM nginx:alpine AS runtime
+RUN apk upgrade --no-cache
 COPY --from=build /app/build /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
