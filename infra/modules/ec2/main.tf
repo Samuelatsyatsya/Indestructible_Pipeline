@@ -87,6 +87,8 @@ resource "aws_instance" "app" {
   iam_instance_profile        = aws_iam_instance_profile.ec2.name
   associate_public_ip_address = true
 
+  key_name = var.key_name
+
   user_data = <<-EOF
     #!/bin/bash
     set -e

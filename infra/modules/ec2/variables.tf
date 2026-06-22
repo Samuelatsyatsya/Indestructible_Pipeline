@@ -27,6 +27,11 @@ variable "frontend_image" {
   type        = string
 }
 
+variable "key_name" {
+  description = "EC2 key pair name for SSH access"
+  type        = string
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
