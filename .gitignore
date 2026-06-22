@@ -24,3 +24,4 @@ infra/terraform.tfvars
 infra/terraform.tfvars.local
 *.pem
 *.key
+infra/modules/lambda/dr_failover.zip
