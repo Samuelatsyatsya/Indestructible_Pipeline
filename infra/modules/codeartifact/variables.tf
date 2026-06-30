@@ -9,6 +9,12 @@ variable "npm_repo_name" {
   default     = "fincorp-npm"
 }
 
+variable "ci_principal_name" {
+  description = "IAM username of the CI principal (behind the indestructible-creds Jenkins credential) that needs CodeArtifact pull access"
+  type        = string
+  default     = "CostDetective"
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

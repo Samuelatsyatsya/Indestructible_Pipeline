@@ -64,7 +64,7 @@ All infrastructure is managed with Terraform using a modular structure and local
 |---|---|---|
 | `vpc` | VPC + subnets | 10.0.0.0/16, 2 public + 2 private subnets in eu-central-1 |
 | `ecr` | ECR repositories | `fincorp/loan-api`, `fincorp/loan-ui` — **IMMUTABLE** tags |
-| `codeartifact` | npm proxy | `fincorp` domain, `fincorp-npm` repository |
+| `codeartifact` | npm proxy | `fincorp` domain, `fincorp-npm` repository — all Docker `npm install`s route through it |
 | `secrets` | Secrets Manager | RDS master credentials at `fincorp/rds/master-password` |
 | `rds` | PostgreSQL 15.18 | `db.t3.micro`, encrypted, private subnets, no public access |
 | `backup` | AWS Backup | Daily at 02:00 UTC + cross-region copy to eu-west-1 |
@@ -98,8 +98,10 @@ terraform apply -var="db_password=<password>"
 ```
 Checkout
     │
+   CodeArtifact Login  (short-lived npm token → /tmp/ca-token.txt)
+    │
     ├── Build Backend ──┐
-    │                   ├── (parallel)
+    │                   ├── (parallel, npm installs via CodeArtifact)
     └── Build Frontend ─┘
             │
     ├── Scan Backend  ──┐
@@ -258,9 +260,20 @@ Primary RDS `fincorp-primary-db` (eu-central-1) deleted.
 
 | Credential ID | Type | Purpose |
 |---|---|---|
-| `indestructible-creds` | AWS access key | ECR login and push |
+| `indestructible-creds` | AWS access key | ECR login/push **and** CodeArtifact auth token |
 | `indestructible-ssh` | SSH private key | SSH/SCP into EC2 |
 | `indestructible-ec2` | Secret text | EC2 public IP address |
+
+The `CodeArtifact Login` stage needs the IAM principal behind `indestructible-creds` to fetch a token and read packages. This is **codified in the `codeartifact` Terraform module** — it creates the managed policy `fincorp-codeartifact-ci-pull` (scoped to the `fincorp` domain and `fincorp-npm` repo) and attaches it to the CI user:
+
+```hcl
+codeartifact:GetAuthorizationToken   → on the fincorp domain ARN
+codeartifact:GetRepositoryEndpoint   → on the fincorp-npm repo ARN
+codeartifact:ReadFromRepository      → on the fincorp-npm repo ARN
+sts:GetServiceBearerToken            → fenced to codeartifact.amazonaws.com
+```
+
+The attachment target defaults to the `CostDetective` user and is overridable via the module's `ci_principal_name` variable (set it if you split out a dedicated Jenkins IAM user).
 
 ---
 

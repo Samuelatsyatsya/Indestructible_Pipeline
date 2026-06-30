@@ -7,6 +7,13 @@ pipeline {
         ECR_REGISTRY    = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         BACKEND_REPO    = 'fincorp/loan-api'
         FRONTEND_REPO   = 'fincorp/loan-ui'
+        // CodeArtifact npm registry — all dependency installs route through here
+        // so builds survive public npmjs outages and pull from a single audited source.
+        CA_DOMAIN       = 'fincorp'
+        CA_REPO         = 'fincorp-npm'
+        NPM_REGISTRY    = "https://${CA_DOMAIN}-${AWS_ACCOUNT_ID}.d.codeartifact.${AWS_REGION}.amazonaws.com/npm/${CA_REPO}/"
+        // BuildKit is required for `docker build --secret` (keeps the CodeArtifact token out of image layers).
+        DOCKER_BUILDKIT = '1'
         // Tag combines build number + short commit SHA for full traceability.
         IMAGE_TAG       = "${env.BUILD_NUMBER}-${env.GIT_COMMIT?.take(7) ?: 'local'}"
     }
@@ -19,13 +26,39 @@ pipeline {
             }
         }
 
+        stage('CodeArtifact Login') {
+            // Fetch a short-lived npm auth token for the FinCorp CodeArtifact repo.
+            // Written to a file (chmod 600) so the parallel docker builds can mount it
+            // as a BuildKit secret — the token never appears in a build-arg or image layer.
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'indestructible-creds'
+                ]]) {
+                    sh """
+                        aws codeartifact get-authorization-token \
+                          --domain ${CA_DOMAIN} \
+                          --domain-owner ${AWS_ACCOUNT_ID} \
+                          --region ${AWS_REGION} \
+                          --query authorizationToken \
+                          --output text > /tmp/ca-token.txt
+                        chmod 600 /tmp/ca-token.txt
+                    """
+                }
+            }
+        }
+
         stage('Build Images') {
             // Build both images in parallel to reduce pipeline wall-clock time.
+            // Each install routes through CodeArtifact (NPM_REGISTRY); the auth token
+            // is mounted as a BuildKit secret, not baked into the image.
             parallel {
                 stage('Build Backend') {
                     steps {
                         sh """
                             docker build \
+                              --secret id=codeartifact_token,src=/tmp/ca-token.txt \
+                              --build-arg NPM_REGISTRY='${NPM_REGISTRY}' \
                               -t ${ECR_REGISTRY}/${BACKEND_REPO}:${IMAGE_TAG} \
                               -t ${ECR_REGISTRY}/${BACKEND_REPO}:latest \
                               ./backend
@@ -36,6 +69,8 @@ pipeline {
                     steps {
                         sh """
                             docker build \
+                              --secret id=codeartifact_token,src=/tmp/ca-token.txt \
+                              --build-arg NPM_REGISTRY='${NPM_REGISTRY}' \
                               --build-arg REACT_APP_API_URL='' \
                               -t ${ECR_REGISTRY}/${FRONTEND_REPO}:${IMAGE_TAG} \
                               -t ${ECR_REGISTRY}/${FRONTEND_REPO}:latest \
@@ -142,9 +177,10 @@ COMPOSE
     }
 
     post {
-        // Always clean up local images to keep the Jenkins agent disk free.
+        // Always clean up local images and the CodeArtifact token to keep the agent clean.
         always {
             sh """
+                rm -f /tmp/ca-token.txt || true
                 docker rmi ${ECR_REGISTRY}/${BACKEND_REPO}:${IMAGE_TAG} || true
                 docker rmi ${ECR_REGISTRY}/${FRONTEND_REPO}:${IMAGE_TAG} || true
             """
