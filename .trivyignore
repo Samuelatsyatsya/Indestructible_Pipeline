@@ -1,4 +1,4 @@
-# Vulnerabilities in npm's own bundled packages (cross-spawn, glob, minimatch, tar).
+# Vulnerabilities in npm's own bundled packages (cross-spawn, glob, minimatch, tar, sigstore).
 # These are internal to the Node.js build tooling and are not runtime dependencies
 # of our application — they are not reachable in the running container.
 CVE-2024-21538
@@ -12,3 +12,4 @@ CVE-2026-24842
 CVE-2026-26960
 CVE-2026-29786
 CVE-2026-31802
+CVE-2026-48815
